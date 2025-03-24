@@ -120,11 +120,11 @@ If no arguments are provided, the program uses:
 The default base case of 45 is chosen based on the L1 cache size and the data type:
 - L1 cache size: 48 KB (49152 bytes).
 - Data type: `double` (8 bytes per element).
-- Three 45 × 45 sub-matrices (A, B, C) = \( 45 \times 45 \times 8 \times 3 = 48600 \) bytes (47.46 KB), which fits within the 48 KB L1 cache.
+- Three 45 × 45 sub-matrices (A, B, C) = 45 × 45 × 8 × 3 = 48600 bytes (47.46 KB), which fits within the 48 KB L1 cache.
 This size ensures that the recursive algorithm’s base case maximizes cache locality, reducing misses while keeping recursion overhead manageable.
 
 #### Why `BLOCK_SIZE = 32`?
 The default block size of 32 is a conservative choice:
-- A 32 × 32 block = \( 32 \times 32 \times 8 = 8192 \) bytes (8 KB).
+- A 32 × 32 block = 32 × 32 × 8 = 8192 bytes (8 KB).
 - Three blocks = 24 KB, well within 48 KB.
 It balances locality with loop overhead, though tuning (e.g., 45 or 64) might yield better results depending on hardware.
