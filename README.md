@@ -5,6 +5,8 @@ This project implements and compares three different approaches to matrix multip
 1. **Naive Matrix Multiplication**: A straightforward implementation using three nested loops.
 2. **Blocked Matrix Multiplication**: A cache-aware approach that divides matrices into fixed-size blocks to improve memory locality.
 3. **Recursive Matrix Multiplication**: A divide-and-conquer algorithm that recursively splits matrices into quadrants until a base case is reached.
+4. **Parallel Blocked Matrix Multiplication**: An extension of the blocked algorithm that distributes block-wise computation across multiple threads to utilize all CPU cores and increase throughput. It combines cache-aware access patterns with parallel processing for faster performance on multi-core machines.
+
 
 The goal is to evaluate how these methods perform in terms of execution time, focusing on their interaction with the CPU cache (L1 cache size of 48 KB in this case). The program measures and outputs the time taken by each method to multiply two square matrices of size `N × N`, allowing customization of matrix size (`N`), block size (`BLOCK_SIZE`), and recursive base case (`BASE_CASE`) via command-line arguments.
 
@@ -20,11 +22,12 @@ Matrix size  | 1024 x 1024
 Block size   | 32
 Base case    | 45
 -----------------------------------
-Method              Time (ms)
------------------------------------
-Naive               1294
-Blocked             914
-Recursive           774
+Method                   Time (ms)
+----------------------------------------
+Naive                    4118
+Blocked                  1917
+Parallel Blocked         814
+Recursive                1947
 ```
 
 - **Matrix size**: The dimensions of the matrices being multiplied (default: 1024 × 1024).
@@ -54,10 +57,20 @@ The performance differences between the three methods stem from how they utilize
    - **Performance**: Often the fastest in this example (774 ms) due to its adaptability. It balances recursion overhead with locality, performing well across different hardware without needing cache-specific adjustments.
    - **Cache impact**: Good locality at smaller sizes, fewer misses than naive, and competitive with blocked. The recursion overhead (function calls) is a trade-off for its flexibility.
 
+4. **Parallel Blocked Matrix Multiplication**:
+   - **How it works**: This method is based on the blocked (cache-aware) algorithm, but parallelizes the computation across multiple threads. Each thread handles a subset of block rows, allowing multiple parts of the matrix to be processed simultaneously. It uses `std::thread::hardware_concurrency()` to determine the number of threads, distributing block-level work to avoid contention and redundant cache loads.
+   - **Cache & Thread Efficiency**: Parallelism improves throughput by leveraging multiple CPU cores, while still preserving the cache locality benefits of blocked access. Since each thread works on distinct rows, false sharing is avoided, and data fits better within per-core caches (e.g., L1 and L2).
+   - **Performance**: Offers significant speedup on multi-core systems. Best-case performance approaches the ideal of `(single-core blocked time / #cores)`, but real-world results depend on cache architecture, NUMA domains, and thread scheduling overhead.
+   - **Trade-offs**: Higher memory bandwidth demand; parallel speedup may flatten beyond certain matrix sizes or core counts.
+
+---
+
 ### Cache-Aware vs. Cache-Oblivious
 - **Cache-Aware (Blocked)**: Explicitly optimizes for a known cache size (e.g., 48 KB L1). It’s faster when tuned correctly (e.g., `BLOCK_SIZE = 32` or 45), but performance drops if the block size doesn’t match the hardware.
 - **Cache-Oblivious (Recursive)**: Adapts to any cache size automatically through recursive subdivision. It’s more portable across systems but may incur higher overhead from recursive calls.
 - **Key Trade-off**: Blocked offers peak performance with tuning; recursive offers robustness without tuning.
+- **Parallel Blocked** adds **thread-level parallelism** on top of the cache-aware blocked approach. It maximizes CPU utilization by dividing the workload across multiple cores, while still benefiting from tuned block sizes that align with cache capacity.
+
 
 In the example output, recursive (774 ms) outperforms blocked (914 ms) and naive (1294 ms), likely because its cache-oblivious nature better adapts to the 48 KB L1 cache, while blocked’s `BLOCK_SIZE = 32` might not be perfectly optimal. Naive lags due to its lack of cache consideration.
 
