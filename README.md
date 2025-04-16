@@ -1,12 +1,19 @@
 # Matrix Multiplication Performance Comparison
 
 ## Problem Description
-This project implements and compares three different approaches to matrix multiplication:
-1. **Naive Matrix Multiplication**: A straightforward implementation using three nested loops.
-2. **Blocked Matrix Multiplication**: A cache-aware approach that divides matrices into fixed-size blocks to improve memory locality.
-3. **Recursive Matrix Multiplication**: A divide-and-conquer algorithm that recursively splits matrices into quadrants until a base case is reached.
-4. **Parallel Blocked Matrix Multiplication**: An extension of the blocked algorithm that distributes block-wise computation across multiple threads to utilize all CPU cores and increase throughput. It combines cache-aware access patterns with parallel processing for faster performance on multi-core machines.
+This project implements and compares four different approaches to matrix multiplication:
 
+1. **Naive Matrix Multiplication**  
+   A straightforward implementation using three nested loops.
+
+2. **Blocked Matrix Multiplication**  
+   A cache-aware approach that divides matrices into fixed-size blocks to improve memory locality.
+
+3. **Recursive Matrix Multiplication**  
+   A divide-and-conquer algorithm that recursively splits matrices into quadrants until a base case is reached.
+
+4. **Parallel Blocked Matrix Multiplication**  
+   An extension of the blocked algorithm that distributes block-wise computation across multiple threads to utilize all CPU cores and increase throughput. It combines cache-aware access patterns with parallel processing for faster performance on multi-core machines.
 
 The goal is to evaluate how these methods perform in terms of execution time, focusing on their interaction with the CPU cache (L1 cache size of 48 KB in this case). The program measures and outputs the time taken by each method to multiply two square matrices of size `N × N`, allowing customization of matrix size (`N`), block size (`BLOCK_SIZE`), and recursive base case (`BASE_CASE`) via command-line arguments.
 
@@ -26,7 +33,7 @@ Method                   Time (ms)
 ----------------------------------------
 Naive                    4118
 Blocked                  1917
-Parallel Blocked         814
+Parallel Blocked          814
 Recursive                1947
 ```
 
@@ -38,41 +45,43 @@ Recursive                1947
 ---
 
 ## Why Do Multiplication Methods Differ?
-The performance differences between the three methods stem from how they utilize the CPU cache and handle memory access patterns. Two key concepts in this context are **Cache-Aware** and **Cache-Oblivious** algorithms, which apply to the blocked and recursive methods, respectively.
 
-1. **Naive Matrix Multiplication**:
-   - **How it works**: Uses three nested loops to compute each element of the result matrix `C` by iterating over rows of `A` and columns of `B`.
-   - **Performance**: Slowest due to poor cache utilization. Accesses to `B` are column-wise (stride-N), causing frequent cache misses as data is not contiguous in memory. For a 1024 × 1024 matrix, each row/column access (8192 bytes) exceeds typical cache line sizes (64 bytes), leading to inefficient memory use.
-   - **Cache impact**: High number of cache misses, especially for large matrices. This method is neither cache-aware nor cache-oblivious—it ignores cache entirely.
+The performance differences between these methods stem from how they utilize the CPU cache and handle memory access patterns. Two key concepts in this context are **Cache-Aware** and **Cache-Oblivious** algorithms, which apply to the blocked and recursive methods, respectively.
 
-2. **Blocked Matrix Multiplication (Cache-Aware)**:
-   - **How it works**: Divides matrices into fixed-size blocks (e.g., 32 × 32) and multiplies these blocks, keeping data accesses within small, cache-friendly regions. The block size (`BLOCK_SIZE`) is explicitly tuned to fit within the L1 cache (48 KB).
-   - **Cache-Aware Explanation**: This is a **cache-aware** algorithm because it requires knowledge of the cache size to determine an optimal `BLOCK_SIZE`. For example, a 32 × 32 block (8192 bytes) fits well within the 48 KB L1 cache when considering partial loading (three blocks = 24 KB). The algorithm explicitly optimizes for the cache by ensuring data stays in fast memory during computation.
-   - **Performance**: Faster than naive because it improves spatial and temporal locality, reducing cache misses significantly. However, its efficiency depends on choosing the right `BLOCK_SIZE`. If too small, loop overhead increases; if too large, blocks exceed the cache, negating benefits.
-   - **Cache impact**: Fewer misses due to localized access, but performance is sensitive to hardware-specific tuning.
+### 1. Naive Matrix Multiplication
+- **How it works**: Uses three nested loops to compute each element of the result matrix `C` by iterating over rows of `A` and columns of `B`.
+- **Performance**: Slowest due to poor cache utilization. Accesses to `B` are column-wise (stride-N), causing frequent cache misses as data is not contiguous in memory.
+- **Cache impact**: High number of cache misses, especially for large matrices. This method is neither cache-aware nor cache-oblivious—it ignores cache entirely.
 
-3. **Recursive Matrix Multiplication (Cache-Oblivious)**:
-   - **How it works**: Recursively splits matrices into four quadrants until reaching a base case (e.g., 45 × 45), then uses naive multiplication. Combines results from sub-problems without explicitly referencing cache size.
-   - **Cache-Oblivious Explanation**: This is a **cache-oblivious** algorithm because it doesn’t require prior knowledge of cache parameters (like size or line length). The recursive division naturally adapts to any cache hierarchy: as sub-matrices shrink (e.g., from 1024 × 1024 to 45 × 45), they eventually fit into L1 or L2 cache, improving locality without manual tuning. A 45 × 45 sub-matrix (16200 bytes) ensures three sub-matrices (47.46 KB) fit close to the 48 KB L1 cache limit.
-   - **Performance**: Often the fastest in this example (774 ms) due to its adaptability. It balances recursion overhead with locality, performing well across different hardware without needing cache-specific adjustments.
-   - **Cache impact**: Good locality at smaller sizes, fewer misses than naive, and competitive with blocked. The recursion overhead (function calls) is a trade-off for its flexibility.
+### 2. Blocked Matrix Multiplication (Cache-Aware)
+- **How it works**: Divides matrices into fixed-size blocks (e.g., 32 × 32) and multiplies these blocks, keeping data accesses within small, cache-friendly regions.
+- **Cache-Aware Explanation**: This is a **cache-aware** algorithm because it requires knowledge of the cache size to determine an optimal `BLOCK_SIZE`. For example, a 32 × 32 block (8192 bytes) fits well within the 48 KB L1 cache when considering partial loading (three blocks = 24 KB).
+- **Performance**: Faster than naive because it improves spatial and temporal locality, reducing cache misses significantly. However, its efficiency depends on choosing the right `BLOCK_SIZE`.
+- **Cache impact**: Fewer misses due to localized access, but performance is sensitive to hardware-specific tuning.
 
-4. **Parallel Blocked Matrix Multiplication**:
-   - **How it works**: This method is based on the blocked (cache-aware) algorithm, but parallelizes the computation across multiple threads. Each thread handles a subset of block rows, allowing multiple parts of the matrix to be processed simultaneously. It uses `std::thread::hardware_concurrency()` to determine the number of threads, distributing block-level work to avoid contention and redundant cache loads.
-   - **Cache & Thread Efficiency**: Parallelism improves throughput by leveraging multiple CPU cores, while still preserving the cache locality benefits of blocked access. Since each thread works on distinct rows, false sharing is avoided, and data fits better within per-core caches (e.g., L1 and L2).
-   - **Performance**: Offers significant speedup on multi-core systems. Best-case performance approaches the ideal of `(single-core blocked time / #cores)`, but real-world results depend on cache architecture, NUMA domains, and thread scheduling overhead.
-   - **Trade-offs**: Higher memory bandwidth demand; parallel speedup may flatten beyond certain matrix sizes or core counts.
+### 3. Recursive Matrix Multiplication (Cache-Oblivious)
+- **How it works**: Recursively splits matrices into four quadrants until reaching a base case (e.g., 45 × 45), then uses naive multiplication.
+- **Cache-Oblivious Explanation**: This is a **cache-oblivious** algorithm because it doesn’t require prior knowledge of cache parameters. The recursive division naturally adapts to any cache hierarchy.
+- **Performance**: Performs better than naive, but in this test case is **slightly slower than blocked** (1947 ms vs 1917 ms). This is likely due to overhead from many recursive calls and imperfect division for some matrix sizes.
+- **Cache impact**: Good cache behavior for smaller submatrices, but performance can be limited by recursion overhead.
+
+### 4. Parallel Blocked Matrix Multiplication
+- **How it works**: Based on the blocked algorithm, but parallelized using multiple threads. Each thread handles a different block row section.
+- **Cache & Thread Efficiency**: Threads work on distinct memory regions, minimizing false sharing and allowing per-core cache utilization. Blocked access patterns remain intact.
+- **Performance**: **Fastest** in the example (814 ms), showing excellent scalability across CPU cores. Speedup depends on core count and memory bandwidth.
+- **Trade-offs**: Increased memory pressure and synchronization complexity, but greatly improves overall throughput.
 
 ---
 
 ### Cache-Aware vs. Cache-Oblivious
-- **Cache-Aware (Blocked)**: Explicitly optimizes for a known cache size (e.g., 48 KB L1). It’s faster when tuned correctly (e.g., `BLOCK_SIZE = 32` or 45), but performance drops if the block size doesn’t match the hardware.
-- **Cache-Oblivious (Recursive)**: Adapts to any cache size automatically through recursive subdivision. It’s more portable across systems but may incur higher overhead from recursive calls.
-- **Key Trade-off**: Blocked offers peak performance with tuning; recursive offers robustness without tuning.
-- **Parallel Blocked** adds **thread-level parallelism** on top of the cache-aware blocked approach. It maximizes CPU utilization by dividing the workload across multiple cores, while still benefiting from tuned block sizes that align with cache capacity.
 
+| Type           | Description                                             | Tuned?           | Portability | Overhead    |
+|----------------|---------------------------------------------------------|------------------|-------------|-------------|
+| Cache-Aware    | Manually optimized to fit known cache (e.g., BLOCK_SIZE) | Requires tuning  | Low         | Low         |
+| Cache-Oblivious| Recursive strategy that fits cache levels implicitly     | No tuning needed | High        | Medium-High |
+| Parallel Blocked| Combines blocked access with multithreading             | Scales with CPU  | Medium      | Medium      |
 
-In the example output, recursive (774 ms) outperforms blocked (914 ms) and naive (1294 ms), likely because its cache-oblivious nature better adapts to the 48 KB L1 cache, while blocked’s `BLOCK_SIZE = 32` might not be perfectly optimal. Naive lags due to its lack of cache consideration.
+> In the example output, **Parallel Blocked (814 ms)** is the fastest method, significantly outperforming **Blocked (1917 ms)**, **Recursive (1947 ms)**, and **Naive (4118 ms)**. This demonstrates the effectiveness of combining cache-aware blocking with thread-level parallelism.
 
 ---
 
@@ -90,11 +99,7 @@ Use CMake to build the project:
 cmake -S . -B build
 cmake --build build
 ```
-Ensure you have CMake and a C++ compiler (e.g., g++) installed. Compile with optimization for accurate performance results:
-```bash
-cmake -S . -B build
-cmake --build build
-```
+Ensure you have CMake and a C++ compiler (e.g., g++) installed.
 
 ### 3. Run the Program
 
@@ -103,13 +108,13 @@ Example with arguments:
 ```bash
 ./build/main.exe --block-size 64 --base-case 32 --n 512
 ```
-Example without arguments (uses default values):
+Example without arguments:
 ```bash
 ./build/main.exe
 ```
 
 #### For Linux/macOS Users
-The executable is named `main` instead of `main.exe`. Run it like this:
+Example with arguments:
 ```bash
 ./build/main --block-size 64 --base-case 32 --n 512
 ```
@@ -118,26 +123,32 @@ Or without arguments:
 ./build/main
 ```
 
-#### Explanation of Arguments
-- `--block-size`: Sets the block size for the blocked multiplication method.
-- `--base-case`: Sets the base case size for the recursive multiplication method.
-- `--n`: Sets the size of the square matrices (`N × N`).
-  
-#### Default Values
-If no arguments are provided, the program uses:
+---
+
+### Explanation of Arguments
+
+| Argument        | Description                                                       |
+|----------------|-------------------------------------------------------------------|
+| `--block-size` | Sets the block size used in blocked and parallel blocked methods. |
+| `--base-case`  | Threshold size for recursive base-case computation.               |
+| `--n`          | Size of the square matrices `N × N`.                              |
+
+---
+
+### Default Values
+
 - `N = 1024`
 - `BLOCK_SIZE = 32`
 - `BASE_CASE = 45`
 
-#### Why `BASE_CASE = 45`?
-The default base case of 45 is chosen based on the L1 cache size and the data type:
-- L1 cache size: 48 KB (49152 bytes).
-- Data type: `double` (8 bytes per element).
-- Three 45 × 45 sub-matrices (A, B, C) = 45 × 45 × 8 × 3 = 48600 bytes (47.46 KB), which fits within the 48 KB L1 cache.
-This size ensures that the recursive algorithm’s base case maximizes cache locality, reducing misses while keeping recursion overhead manageable.
+---
 
-#### Why `BLOCK_SIZE = 32`?
-The default block size of 32 is a conservative choice:
-- A 32 × 32 block = 32 × 32 × 8 = 8192 bytes (8 KB).
-- Three blocks = 24 KB, well within 48 KB.
-It balances locality with loop overhead, though tuning (e.g., 45 or 64) might yield better results depending on hardware.
+### Why `BASE_CASE = 45`?
+- L1 cache size = 48 KB
+- 3 matrices of size 45 × 45 × 8 bytes = 47.46 KB
+- Fits in L1 cache to reduce misses and recursion overhead.
+
+### Why `BLOCK_SIZE = 32`?
+- 32 × 32 × 8 = 8 KB per block
+- 3 blocks = 24 KB, safely fits in 48 KB
+- Offers good locality and low loop overhead.
